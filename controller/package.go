@@ -199,21 +199,17 @@ func (v VersionFiles) Less(i, j int) bool { return common.CompareClickHouseVersi
 
 func GetAllVersions(files VersionFiles) []string {
 	versions := make(VersionFiles, 0)
-	ckServerMap := make(map[string]bool)
 
 	for _, file := range files {
 		end := strings.LastIndex(file, "-")
 		if strings.HasPrefix(file, model.CkServerPackagePrefix) && strings.HasSuffix(file, model.CkServerPackageSuffix) {
 			start := len(model.CkServerPackagePrefix) + 1
 			version := file[start:end]
-			ckServerMap[version] = true
+			versions = append(versions, version)
 			continue
 		}
 	}
 
-	for key := range ckServerMap {
-		versions = append(versions, key)
-	}
 	sort.Sort(sort.Reverse(versions))
 	return versions
 }
