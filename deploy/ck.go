@@ -154,23 +154,62 @@ func (d *CKDeploy) Prepare() error {
 	return nil
 }
 
-func (d *CKDeploy) Install() error {
-	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
+func (d *CKDeploy) stopNodeCommands() []string {
 	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	cmds := make([]string, 0)
+	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh stop", installDirectory))
+	return cmds
+}
 
+func (d *CKDeploy) startNodeCommands() []string {
+	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	cmds := make([]string, 0)
+	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh start", installDirectory))
+	return cmds
+}
+
+func (d *CKDeploy) restartNodeCommands() []string {
+	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	cmds := make([]string, 0)
+	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh restart", installDirectory))
+	return cmds
+}
+
+func (d *CKDeploy) clearDirectoryCommands() []string {
+	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	cmds := make([]string, 0)
+	cmds = append(cmds, fmt.Sprintf("rm -rf %s", installDirectory))
+	return cmds
+}
+
+func (d *CKDeploy) unpackPackageCommands() []string {
+	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("tar xvzf %s -C %s --strip-components 1", path.Join(common.TmpWorkDirectory, d.Packages[0]), unpackDirectory))
-	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh stop", installDirectory))
-	cmds = append(cmds, fmt.Sprintf("rm -rf %s", installDirectory))
-	cmds = append(cmds, fmt.Sprintf("mkdir -p %s", installDirectory))
-	cmds = append(cmds, fmt.Sprintf("cp %s/bin/* %s", unpackDirectory, installDirectory))
-	cmds = append(cmds, fmt.Sprintf("mkdir %s/logs", installDirectory))
+	return cmds
+}
 
+func (d *CKDeploy) installPackageCommands() []string {
+	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
+	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	cmds := make([]string, 0)
+	cmds = append(cmds, fmt.Sprintf("mkdir -p %s", installDirectory))
+	cmds = append(cmds, fmt.Sprintf("cp -f %s/bin/* %s", unpackDirectory, installDirectory))
+	cmds = append(cmds, fmt.Sprintf("mkdir %s/logs", path.Join(common.InstallDirectory, d.Conf.Cluster)))
+	return cmds
+}
+
+func (d *CKDeploy) Install() error {
 	var lastError error
+	cmds := d.stopNodeCommands()
+	cmds = append(cmds, d.clearDirectoryCommands()...)
+	cmds = append(cmds, d.unpackPackageCommands()...)
+	cmds = append(cmds, d.installPackageCommands()...)
+	cmd := strings.Join(cmds, ";")
+
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := strings.Join(cmds, ";")
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err
@@ -190,10 +229,10 @@ func (d *CKDeploy) Install() error {
 
 func (d *CKDeploy) Uninstall() error {
 	var lastError error
+	cmd := strings.Join(d.clearDirectoryCommands(), ";")
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := fmt.Sprintf("rm -rf %s", path.Join(common.InstallDirectory, d.Conf.Cluster))
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err
@@ -211,18 +250,14 @@ func (d *CKDeploy) Uninstall() error {
 }
 
 func (d *CKDeploy) Upgrade() error {
-	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
-
-	cmds := make([]string, 0)
-	cmds = append(cmds, fmt.Sprintf("tar xvzf %s -C %s --strip-components 1", path.Join(common.TmpWorkDirectory, d.Packages[0]), unpackDirectory))
-	cmds = append(cmds, fmt.Sprintf("cp -f %s/bin/* %s", unpackDirectory, installDirectory))
-
 	var lastError error
+	cmds := d.unpackPackageCommands()
+	cmds = append(cmds, d.installPackageCommands()...)
+	cmd := strings.Join(cmds, ";")
+
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := strings.Join(cmds, ";")
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err
@@ -241,7 +276,6 @@ func (d *CKDeploy) Upgrade() error {
 
 func (d *CKDeploy) Config() error {
 	confFiles := make([]string, 0)
-	userFiles := make([]string, 0)
 
 	if d.Conf.LogicCluster == nil {
 		metrika, err := ckconfig.GenerateMetrikaXML(path.Join(config.GetWorkDirectory(), "package", "metrika.xml"), d.Conf)
@@ -261,15 +295,15 @@ func (d *CKDeploy) Config() error {
 	if err != nil {
 		return err
 	}
-	userFiles = append(userFiles, users)
+	confFiles = append(confFiles, users)
 
+	configPath := common.InstallDirectory + "config"
 	var lastError error
 	for index, host := range d.Conf.Hosts {
 		innerIndex := index
 		innerHost := host
 		_ = d.pool.Submit(func() {
 			confFiles := confFiles
-			userFiles := userFiles
 			profilesFile, err := common.NewTempFile(path.Join(config.GetWorkDirectory(), "package"), "profiles")
 			if err != nil {
 				lastError = err
@@ -281,7 +315,7 @@ func (d *CKDeploy) Config() error {
 				lastError = err
 				return
 			}
-			userFiles = append(userFiles, profiles)
+			confFiles = append(confFiles, profiles)
 
 			hostFile, err := common.NewTempFile(path.Join(config.GetWorkDirectory(), "package"), "host")
 			if err != nil {
@@ -296,21 +330,16 @@ func (d *CKDeploy) Config() error {
 			}
 			confFiles = append(confFiles, hostXml)
 
-			_, _ = common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, host, d.Conf.SshPort, "rm -rf /etc/clickhouse-server/config.d/* /etc/clickhouse-server/users.d/*")
+			_, _ = common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, host, d.Conf.SshPort, fmt.Sprintf("rm -rf %s", configPath))
 
-			if err := common.ScpUploadFiles(confFiles, "/etc/clickhouse-server/config.d/", d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort); err != nil {
-				lastError = err
-				return
-			}
-			if err := common.ScpUploadFiles(userFiles, "/etc/clickhouse-server/users.d/", d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort); err != nil {
+			if err := common.ScpUploadFiles(confFiles, configPath, d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort); err != nil {
 				lastError = err
 				return
 			}
 
 			cmds := make([]string, 0)
-			cmds = append(cmds, fmt.Sprintf("mv /etc/clickhouse-server/config.d/%s /etc/clickhouse-server/config.d/host.xml", hostFile.BaseName))
-			cmds = append(cmds, fmt.Sprintf("mv /etc/clickhouse-server/users.d/%s /etc/clickhouse-server/users.d/profiles.xml", profilesFile.BaseName))
-			cmds = append(cmds, "chown -R clickhouse:clickhouse /etc/clickhouse-server")
+			cmds = append(cmds, fmt.Sprintf("mv %s/%s %s/host.xml", configPath, hostFile.BaseName, configPath))
+			cmds = append(cmds, fmt.Sprintf("mv %s/%s %s/profiles.xml", configPath, profilesFile.BaseName, configPath))
 
 			cmd := strings.Join(cmds, ";")
 			if _, err = common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd); err != nil {
@@ -340,7 +369,7 @@ func (d *CKDeploy) Config() error {
 				innerHost := host
 				deploy := deploy
 				_ = d.pool.Submit(func() {
-					if err := common.ScpUploadFile(m, "/etc/clickhouse-server/config.d/metrika.xml", deploy.Conf.SshUser, deploy.Conf.SshPassword, innerHost, deploy.Conf.SshPort); err != nil {
+					if err := common.ScpUploadFile(m, fmt.Sprintf("%s/metrika.xml", configPath), deploy.Conf.SshUser, deploy.Conf.SshPassword, innerHost, deploy.Conf.SshPort); err != nil {
 						lastError = err
 						return
 					}
@@ -358,10 +387,10 @@ func (d *CKDeploy) Config() error {
 
 func (d *CKDeploy) Start() error {
 	var lastError error
+	cmd := strings.Join(d.startNodeCommands(), ";")
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := fmt.Sprintf("sh %s/start.sh start", path.Join(common.InstallDirectory, d.Conf.Cluster))
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err
@@ -380,10 +409,10 @@ func (d *CKDeploy) Start() error {
 
 func (d *CKDeploy) Stop() error {
 	var lastError error
+	cmd := strings.Join(d.stopNodeCommands(), ";")
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := fmt.Sprintf("sh %s/start.sh stop", path.Join(common.InstallDirectory, d.Conf.Cluster))
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err
@@ -402,10 +431,10 @@ func (d *CKDeploy) Stop() error {
 
 func (d *CKDeploy) Restart() error {
 	var lastError error
+	cmd := strings.Join(d.restartNodeCommands(), ";")
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			cmd := fmt.Sprintf("sh %s/start.sh restart", path.Join(common.InstallDirectory, d.Conf.Cluster))
 			_, err := common.RemoteExecute(d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort, cmd)
 			if err != nil {
 				lastError = err

@@ -76,11 +76,14 @@ func logger(indent int) string {
 	return xml.GetContext()
 }
 
-func distributed_ddl(indent int, cluster string) string {
+func distributed_ddl(indent int, conf *model.CKManClickHouseConfig) string {
 	xml := common.NewXmlFile("")
 	xml.SetIndent(indent)
 	xml.Begin("distributed_ddl")
-	xml.Write("path", fmt.Sprintf("/clickhouse/task_queue/ddl/%s", cluster))
+	if !strings.HasSuffix(conf.Path, "/") {
+		conf.Path += "/"
+	}
+	xml.Write("path", fmt.Sprintf("%sclickhouse/task_queue/ddl/%s", conf.Path, conf.Cluster))
 	xml.End("distributed_ddl")
 	return xml.GetContext()
 }
@@ -165,7 +168,7 @@ func GenerateCustomXML(filename string, conf *model.CKManClickHouseConfig, ipv6E
 	xml.Append(yandex(indent, conf, ipv6Enable))
 	xml.Append(logger(indent))
 	xml.Append(system_log(indent))
-	xml.Append(distributed_ddl(indent, conf.Cluster))
+	xml.Append(distributed_ddl(indent, conf))
 	xml.Append(prometheus(indent))
 	xml.Append(merge_tree(indent, conf.MergeTreeConf))
 	xml.Append(storage(indent, conf.Storage))
