@@ -3,12 +3,8 @@ package model
 const (
 	CkClusterImport       string = "import"
 	CkClusterDeploy       string = "deploy"
-	CkClientPackagePrefix string = "clickhouse-client"
-	CkClientPackageSuffix string = "2.noarch.rpm"
-	CkCommonPackagePrefix string = "clickhouse-common-static"
-	CkCommonPackageSuffix string = "2.x86_64.rpm"
-	CkServerPackagePrefix string = "clickhouse-server"
-	CkServerPackageSuffix string = "2.noarch.rpm"
+	CkServerPackagePrefix string = "ClickHouse"
+	CkServerPackageSuffix string = "Linux.tar.gz"
 
 	ClickHouseDefaultDB          string = "default"
 	ClickHouseDefaultUser        string = "default"
@@ -31,9 +27,9 @@ const (
 )
 
 type CkDeployExt struct {
-	UpgradePolicy  string
-	Ipv6Enable     bool
-	Restart        bool
+	UpgradePolicy string
+	Ipv6Enable    bool
+	Restart       bool
 }
 
 type CkShard struct {

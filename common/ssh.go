@@ -19,7 +19,10 @@ import (
 )
 
 const (
-	TmpWorkDirectory string = "/tmp"
+	TmpWorkDirectory  string = "/home/work/tmp"
+	PackageDirectory  string = "/home/work/packages/clickhouse"
+	InstallDirectory  string = "/home/work/app/clickhouse"
+	ServerPIDFileName string = "clickhouse_server.pid"
 )
 
 func sshConnectwithPassword(user, password string) (*ssh.ClientConfig, error) {
@@ -240,7 +243,7 @@ func SSHRun(client *ssh.Client, password, shell string) (result string, err erro
 	if strings.HasPrefix(result, "[sudo] password for ") {
 		result = result[strings.Index(result, "\n")+1:]
 	}
-	result = result[strings.Index(result, "i love china") + 12:]
+	result = result[strings.Index(result, "i love china")+12:]
 	result = strings.TrimLeft(result, "\r")
 	result = strings.TrimLeft(result, "\n")
 	log.Logger.Debugf("output:%s", result)
@@ -334,7 +337,7 @@ func RemoteExecute(user, password, host string, port int, cmd string) (string, e
 	}
 	defer client.Close()
 
-	finalScript := genFinalScript(user, cmd)
+	finalScript := genFinalScript(cmd)
 	var output string
 	if output, err = SSHRun(client, password, finalScript); err != nil {
 		log.Logger.Errorf("run '%s' on host %s fail: %s", cmd, host, output)
@@ -343,31 +346,6 @@ func RemoteExecute(user, password, host string, port int, cmd string) (string, e
 	return output, nil
 }
 
-func genFinalScript(user, cmd string) string {
-	var shell string
-	if user != "root" {
-		cmds := strings.Split(cmd, ";")
-		for index, command := range cmds {
-			cmds[index] = fmt.Sprintf("sudo %s", command)
-		}
-		cmd = strings.Join(cmds, ";")
-
-		/* if LANG=zh_CN.UTF-8, maybe print message like this:
-		我们信任您已经从系统管理员那里了解了日常注意事项。
-		总结起来无外乎这三点：
-
-		    #1) 尊重别人的隐私。
-		    #2) 输入前要先考虑(后果和风险)。
-		    #3) 权力越大，责任越大。
-
-		[sudo] username 的密码：
-		so we need convert charset first.
-		*/
-
-		shell = fmt.Sprintf("export LANG=en_US.UTF-8; %s", cmd)
-	} else {
-		shell = cmd
-	}
-	shell = fmt.Sprintf("echo 'i love china'; %s", shell)
-	return shell
+func genFinalScript(cmd string) string {
+	return fmt.Sprintf("echo 'i love china'; %s", cmd)
 }

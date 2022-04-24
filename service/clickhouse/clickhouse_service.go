@@ -253,8 +253,8 @@ func (ck *CkService) CreateTable(params *model.CreateCkTableParams) error {
 		params.DB, params.Name, params.Cluster, strings.Join(columns, ", "), params.Engine,
 		partition, strings.Join(params.Order, ", "))
 	if params.Engine == model.ClickHouseDefaultReplicaEngine || params.Engine == model.ClickHouseReplicaReplacingEngine {
-		create = fmt.Sprintf("CREATE TABLE `%s`.`%s` ON CLUSTER `%s` (%s) ENGINE = %s('/clickhouse/tables/{cluster}/%s/%s/{shard}', '{replica}') PARTITION BY %s ORDER BY (%s)",
-			params.DB, params.Name, params.Cluster, strings.Join(columns, ", "), params.Engine, params.DB, params.Name,
+		create = fmt.Sprintf("CREATE TABLE `%s`.`%s` ON CLUSTER `%s` (%s) ENGINE = %s('/clickhouse/tables/%s/%s/%s/{shard}', '{replica}') PARTITION BY %s ORDER BY (%s)",
+			params.DB, params.Name, params.Cluster, strings.Join(columns, ", "), params.Engine, params.Cluster, params.DB, params.Name,
 			partition, strings.Join(params.Order, ", "))
 	}
 	if params.TTLExpr != "" {
