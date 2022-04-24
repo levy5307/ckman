@@ -193,30 +193,16 @@ func GetAllFiles(dirPth string) ([]string, error) {
 
 type VersionFiles []string
 
-func (v VersionFiles) Len() int { return len(v) }
-func (v VersionFiles) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v VersionFiles) Len() int           { return len(v) }
+func (v VersionFiles) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
 func (v VersionFiles) Less(i, j int) bool { return common.CompareClickHouseVersion(v[i], v[j]) < 0 }
 
 func GetAllVersions(files VersionFiles) []string {
 	versions := make(VersionFiles, 0)
-	ckClientMap := make(map[string]bool)
-	ckCommonMap := make(map[string]bool)
 	ckServerMap := make(map[string]bool)
 
 	for _, file := range files {
 		end := strings.LastIndex(file, "-")
-		if strings.HasPrefix(file, model.CkClientPackagePrefix) && strings.HasSuffix(file, model.CkClientPackageSuffix) {
-			start := len(model.CkClientPackagePrefix) + 1
-			version := file[start:end]
-			ckClientMap[version] = true
-			continue
-		}
-		if strings.HasPrefix(file, model.CkCommonPackagePrefix) && strings.HasSuffix(file, model.CkCommonPackageSuffix) {
-			start := len(model.CkCommonPackagePrefix) + 1
-			version := file[start:end]
-			ckCommonMap[version] = true
-			continue
-		}
 		if strings.HasPrefix(file, model.CkServerPackagePrefix) && strings.HasSuffix(file, model.CkServerPackageSuffix) {
 			start := len(model.CkServerPackagePrefix) + 1
 			version := file[start:end]
@@ -225,12 +211,8 @@ func GetAllVersions(files VersionFiles) []string {
 		}
 	}
 
-	for key := range ckCommonMap {
-		_, clientOk := ckClientMap[key]
-		_, serverOk := ckServerMap[key]
-		if clientOk && serverOk {
-			versions = append(versions, key)
-		}
+	for key := range ckServerMap {
+		versions = append(versions, key)
 	}
 	sort.Sort(sort.Reverse(versions))
 	return versions
