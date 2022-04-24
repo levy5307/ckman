@@ -139,7 +139,8 @@ func (d *CKDeploy) Prepare() error {
 	for _, host := range d.Conf.Hosts {
 		innerHost := host
 		_ = d.pool.Submit(func() {
-			if err := common.ScpUploadFiles(files, common.TmpWorkDirectory, d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort); err != nil {
+			tmpWorkDirectory := fmt.Sprintf("/home/%s/tmp", d.Conf.SshUser)
+			if err := common.ScpUploadFiles(files, tmpWorkDirectory, d.Conf.SshUser, d.Conf.SshPassword, innerHost, d.Conf.SshPort); err != nil {
 				lastError = err
 				return
 			}
@@ -155,47 +156,50 @@ func (d *CKDeploy) Prepare() error {
 }
 
 func (d *CKDeploy) stopNodeCommands() []string {
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	installDirectory := path.Join(d.Conf.Path, d.Conf.Cluster)
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh stop", installDirectory))
 	return cmds
 }
 
 func (d *CKDeploy) startNodeCommands() []string {
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	installDirectory := path.Join(d.Conf.Path, d.Conf.Cluster)
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh start", installDirectory))
 	return cmds
 }
 
 func (d *CKDeploy) restartNodeCommands() []string {
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	installDirectory := path.Join(d.Conf.Path, d.Conf.Cluster)
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("sh %s/start.sh restart", installDirectory))
 	return cmds
 }
 
 func (d *CKDeploy) clearDirectoryCommands() []string {
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	installDirectory := path.Join(d.Conf.Path, d.Conf.Cluster)
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("rm -rf %s", installDirectory))
 	return cmds
 }
 
 func (d *CKDeploy) unpackPackageCommands() []string {
-	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
+	packageDirectory := fmt.Sprintf("/home/%s/packages", d.Conf.SshUser)
+	unpackDirectory := path.Join(packageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
+	tmpWorkDirectory := fmt.Sprintf("/home/%s/tmp", d.Conf.SshUser)
 	cmds := make([]string, 0)
-	cmds = append(cmds, fmt.Sprintf("tar xvzf %s -C %s --strip-components 1", path.Join(common.TmpWorkDirectory, d.Packages[0]), unpackDirectory))
+	cmds = append(cmds, fmt.Sprintf("tar xvzf %s -C %s --strip-components 1", path.Join(tmpWorkDirectory, d.Packages[0]), unpackDirectory))
 	return cmds
 }
 
 func (d *CKDeploy) installPackageCommands() []string {
-	unpackDirectory := path.Join(common.PackageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
-	installDirectory := path.Join(common.InstallDirectory, d.Conf.Cluster)
+	packageDirectory := fmt.Sprintf("/home/%s/packages", d.Conf.SshUser)
+	unpackDirectory := path.Join(packageDirectory, d.Conf.Cluster, time.Now().Format("20060102-150405"))
+	installDirectory := path.Join(d.Conf.Path, d.Conf.Cluster)
 	cmds := make([]string, 0)
 	cmds = append(cmds, fmt.Sprintf("mkdir -p %s", installDirectory))
 	cmds = append(cmds, fmt.Sprintf("cp -f %s/bin/* %s", unpackDirectory, installDirectory))
-	cmds = append(cmds, fmt.Sprintf("mkdir %s/logs", path.Join(common.InstallDirectory, d.Conf.Cluster)))
+	cmds = append(cmds, fmt.Sprintf("mkdir %s/logs", path.Join(d.Conf.Path, d.Conf.Cluster)))
 	return cmds
 }
 
@@ -297,7 +301,7 @@ func (d *CKDeploy) Config() error {
 	}
 	confFiles = append(confFiles, users)
 
-	configPath := common.InstallDirectory + "config"
+	configPath := path.Join(d.Conf.Path, "config")
 	var lastError error
 	for index, host := range d.Conf.Hosts {
 		innerIndex := index

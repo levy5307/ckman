@@ -18,13 +18,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const (
-	TmpWorkDirectory  string = "/home/work/tmp"
-	PackageDirectory  string = "/home/work/packages/clickhouse"
-	InstallDirectory  string = "/home/work/app/clickhouse"
-	ServerPIDFileName string = "clickhouse_server.pid"
-)
-
 func sshConnectwithPassword(user, password string) (*ssh.ClientConfig, error) {
 	return &ssh.ClientConfig{
 		User: user,
@@ -277,23 +270,13 @@ func ScpUploadFile(localFile, remoteFile, user, password, ip string, port int) e
 	}
 	defer sftpClient.Close()
 	// delete remote file first, beacuse maybe the remote file exists and created by root
-	cmd := fmt.Sprintf("rm -rf %s", path.Join(TmpWorkDirectory, path.Base(remoteFile)))
-	_, err = RemoteExecute(user, password, ip, port, cmd)
-	if err != nil {
+	cmd := fmt.Sprintf("rm -rf %s", remoteFile)
+	if _, err = RemoteExecute(user, password, ip, port, cmd); err != nil {
 		return err
 	}
 
-	err = SFTPUpload(sftpClient, localFile, path.Join(TmpWorkDirectory, path.Base(remoteFile)))
-	if err != nil {
+	if err = SFTPUpload(sftpClient, localFile, remoteFile); err != nil {
 		return err
-	}
-
-	if path.Dir(remoteFile) != TmpWorkDirectory {
-		cmd := fmt.Sprintf("cp %s %s", path.Join(TmpWorkDirectory, path.Base(remoteFile)), remoteFile)
-		_, err = RemoteExecute(user, password, ip, port, cmd)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
