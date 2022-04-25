@@ -373,7 +373,7 @@ func (d *CKDeploy) Config() error {
 				innerHost := host
 				deploy := deploy
 				_ = d.pool.Submit(func() {
-					if err := common.ScpUploadFile(m, fmt.Sprintf("%s/metrika.xml", configPath), deploy.Conf.SshUser, deploy.Conf.SshPassword, innerHost, deploy.Conf.SshPort); err != nil {
+					if err := common.ScpUploadFile(m, path.Join(configPath, "metrika.xml"), deploy.Conf.SshUser, deploy.Conf.SshPassword, innerHost, deploy.Conf.SshPort); err != nil {
 						lastError = err
 						return
 					}
